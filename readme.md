@@ -13,7 +13,7 @@
 
 ---
 
-## explain 🀄️
+## explain ✅
 
 <!-- doc-templite START generated -->
 <!-- time = '2018-05-27' -->
@@ -81,7 +81,7 @@ path = "src/main.rs"
 - [extern + use](#extern--use)
 - [struct](#struct)
 - [impl](#impl)
-- [功能函数](#%E5%8A%9F%E8%83%BD%E5%87%BD%E6%95%B0)
+- [各种过滤函数](#%E5%90%84%E7%A7%8D%E8%BF%87%E6%BB%A4%E5%87%BD%E6%95%B0)
   - [unique_filter](#unique_filter)
   - [unique_filter_with_cap](#unique_filter_with_cap)
   - [unique_filter_with_override](#unique_filter_with_override)
@@ -142,14 +142,16 @@ impl<'a> StdinReader<'a> {
 默认
 
 ```rust
+// FnMut : 获取可变的借用值所以可以改变其环境
 fn unique_filter() -> Box<FnMut(&Vec<u8>) -> bool> {
     let mut lines = FxHashSet::default(); // Set的特性，就是唯一属性名，不重复
 
-    // move 移动所有权 ？？？？
+    // move 移动所有权
     Box::new(move |line| lines.insert(line.clone()))
 }
-
 ```
+
+- [返回闭包 且move的自成'一界'](https://kaisery.github.io/trpl-zh-cn/ch19-05-advanced-functions-and-closures.html#a%E8%BF%94%E5%9B%9E%E9%97%AD%E5%8C%85)
 
 #### unique_filter_with_cap
 
@@ -161,7 +163,7 @@ fn unique_filter_with_cap(capacity: usize) -> Box<FnMut(&Vec<u8>) -> bool> {
 
     Box::new(move |line| {
         if lines.insert(line.clone()) {
-            if lines.len() > capacity {
+            if lines.len() > capacity { // 超出容量，就 panic
                 panic!("Cache capacity exceeded!");
             }
             true
@@ -175,20 +177,22 @@ fn unique_filter_with_cap(capacity: usize) -> Box<FnMut(&Vec<u8>) -> bool> {
 
 #### unique_filter_with_override
 
-
+若超出容量，把 队列先进的字符串行，放掉
 
 ```rust
 fn unique_filter_with_override(capacity: usize) -> Box<FnMut(&Vec<u8>) -> bool> {
-    let mut set = FxHashSet::default();
-    let mut queue = VecDeque::new();
+    let mut set = FxHashSet::default(); // Set 唯一属性的特点 
+    let mut queue = VecDeque::new(); // 可变 两端队列 (前后都能进/出)
 
     Box::new(move |line| {
-        if set.insert(line.clone()) {
+        if set.insert(line.clone()) { // <----- 加东西
             if set.len() > capacity {
+                // pop_front 会 把 队列先进的，放掉
                 set.remove(&queue.pop_front().unwrap());
+                // set.remove 关键是，Set 对应的，移除，才能继续 ----> 加东西 
             }
 
-            queue.push_back(line.clone());
+            queue.push_back(line.clone()); // push_back 往 队列屁股后，补上
             true
         } else {
             false
@@ -206,14 +210,14 @@ fn main() {
         .arg(
             Arg::with_name("capacity")
                 .short("n")
-                .help("Number of unique entries to remember.")
+                .help("uq存储项的数量.")
                 .value_name("capacity")
                 .takes_value(true), // 默认值
         )
         .arg(
             Arg::with_name("override")
                 .short("r")
-                .help("Override old unique entries when capacity reached.\nWhen not used, uq will die when the capacity is exceeded.")
+                .help("在达到容量时,覆盖旧的uq存储项。\n如果不使用，uq将在超出容量时死亡。")
                 .requires("capacity") // 必须要有capacity
                 .value_name("override")
                 .takes_value(false), // 默认值
